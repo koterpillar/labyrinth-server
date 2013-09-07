@@ -17,6 +17,7 @@ import qualified Data.Map as M
 import Data.SafeCopy (base, deriveSafeCopy)
 import qualified Data.Text as T
 import Data.Typeable
+import qualified Data.Vector as V
 
 import System.Random
 
@@ -62,6 +63,7 @@ type GameId = String
 data MoveRecord = MoveRecord { _rplayer :: PlayerId
                              , _rmove :: Move
                              , _rresult :: MoveResult
+                             , _rstate :: Labyrinth
                              }
 
 makeLenses ''MoveRecord
@@ -136,7 +138,8 @@ getGame = view . singular . game
 performMove :: GameId -> PlayerId -> Move -> Update Games MoveResult
 performMove g p m = stateUpdate $ zoom (singular $ game g) $ do
     r <- zoom labyrinth $ L.performMove p m
-    zoom moves $ logMoveResult $ MoveRecord p m r
+    l <- use labyrinth
+    zoom moves $ logMoveResult $ MoveRecord p m r l
     return r
 
 removeGame :: GameId -> Update Games ()
@@ -170,25 +173,82 @@ exampleMoves = [ ChoosePosition (Pos 2 4)
 exampleMovesJSON :: Value
 exampleMovesJSON = array $ map show exampleMoves
 
-instance ToJSON Labyrinth where
-    toJSON l = object $ [ "width"       .= (l ^. labWidth)
-                        , "height"      .= (l ^. labHeight)
-                        , "players"     .= playerCount l
-                        , "currentTurn" .= (l ^. currentTurn)
-                        , "gameEnded"   .= (l ^. gameEnded)
-                        ]
-                        ++ ["map" .= show l | l ^. gameEnded]
+class ToSensitiveJSON a where
+    toSensitiveJSON :: Bool -> a -> Value
 
-instance ToJSON MoveRecord where
-    toJSON r = object [ "player" .= (r ^. rplayer)
-                      , "move"   .= show (r ^. rmove)
-                      , "result" .= show (r ^. rresult)
+instance ToSensitiveJSON a => ToSensitiveJSON [a] where
+    toSensitiveJSON s = Array . V.fromList . map (toSensitiveJSON s)
+
+data Sensitive a = Sensitive { isSensitive :: Bool, sensitiveData :: a }
+instance ToSensitiveJSON a => ToJSON (Sensitive a) where
+    toJSON (Sensitive s a) = toSensitiveJSON s a
+
+instance ToJSON Direction where
+    toJSON d = toJSON $ show d
+
+instance ToJSON CellType where
+    toJSON ct = object $ [ "type" .= show ct ] ++ prop ct
+                    where prop (Pit n)   = ["number" .= n]
+                          prop (River d) = ["direction" .= d]
+                          prop _         = []
+
+instance ToJSON Treasure where
+    toJSON t = toJSON $ show t
+
+instance ToJSON Cell where
+    toJSON c = object [ "cell"      .= (c ^. ctype)
+                      , "bullets"   .= (c ^. cbullets)
+                      , "grenades"  .= (c ^. cgrenades)
+                      , "treasures" .= (c ^. ctreasures)
                       ]
+
+instance ToJSON Position where
+    toJSON p = object [ "x" .= pX p
+                      , "y" .= pY p
+                      ]
+
+instance ToJSON Wall where
+    toJSON NoWall   = String "none"
+    toJSON Wall     = String "wall"
+    toJSON HardWall = String "hardwall"
+
+mapToList :: M.Map Position v -> [[v]]
+mapToList m = [[(M.!) m (Pos x y) | x <- [xmin..xmax]] | y <- [ymin..ymax]]
+    where xmin = minimum xs
+          xmax = maximum xs
+          ymin = minimum ys
+          ymax = maximum ys
+          xs = map pX ps
+          ys = map pY ps
+          ps = M.keys m
+
+instance ToSensitiveJSON Labyrinth where
+    toSensitiveJSON s l = object $ [ "width"           .= (l ^. labWidth)
+                                   , "height"          .= (l ^. labHeight)
+                                   , "currentTurn"     .= (l ^. currentTurn)
+                                   , "gameEnded"       .= (l ^. gameEnded)
+                                   , "positionsChosen" .= (l ^. positionsChosen)
+                                   , "playerCount"     .= playerCount l
+                                   ] ++ sensitive
+               where sensitive | s = [ "map"    .= show l
+                                     , "cells"  .= mapToList (l ^. cells)
+                                     , "wallsW" .= mapToList (l ^. wallsV)
+                                     , "wallsH" .= mapToList (l ^. wallsH)
+                                     ]
+                               | otherwise = []
+
+instance ToSensitiveJSON MoveRecord where
+    toSensitiveJSON s r = object [ "player" .= (r ^. rplayer)
+                                 , "move"   .= show (r ^. rmove)
+                                 , "result" .= show (r ^. rresult)
+                                 , "state"  .= Sensitive s (r ^. rstate)
+                                 ]
 
 instance ToJSON Game where
-    toJSON g = object [ "game" .= (g ^. labyrinth)
-                      , "log"  .= (g ^. moves)
+    toJSON g = object [ "game" .= Sensitive ended (g ^. labyrinth)
+                      , "log"  .= Sensitive ended (g ^. moves)
                       ]
+                  where ended = g ^. labyrinth ^. gameEnded
 
 instance ToJSON Games where
     toJSON g = object [T.pack id .= game | (id, game) <- lst]

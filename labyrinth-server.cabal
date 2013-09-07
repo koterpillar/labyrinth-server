@@ -34,6 +34,7 @@ executable labyrinth-server
                      , random ==1.0.*
                      , text ==0.11.*
                      , transformers ==0.3.*
+                     , vector ==0.10.*
                      , acid-state ==0.8.*
                      , yesod ==1.2.*
                      , yesod-static ==1.2.*
