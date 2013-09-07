@@ -8,7 +8,7 @@ module Main where
 import Control.Applicative
 import Control.Concurrent
 import Control.Exception (bracket)
-import Control.Lens
+import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.IO.Class
 
@@ -231,7 +231,7 @@ postMakeMoveR :: GameId -> Handler Value
 postMakeMoveR gameId = postForm makeMoveForm $ \playerMove -> do
     let PlayerMove playerId moveStr = playerMove
     case parseMove (T.unpack moveStr) of
-        Left err   -> returnJson err
+        Left err   -> returnJson $ object ["error" .= err]
         Right move -> do
             res <- update (GameLog gameId) $ PerformMove gameId playerId move
             returnJson $ show res

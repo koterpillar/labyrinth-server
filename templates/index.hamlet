@@ -24,3 +24,4 @@
     <label for=make_move_move>Move:
     <input type=text #make_move_move name=move lang=en>
     <input type=submit value="Make move">
+    <div #move_error .error>

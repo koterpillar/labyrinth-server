@@ -22,6 +22,10 @@ h1 {
     background-repeat: repeat;
 }
 
+.error {
+    color: red;
+}
+
 .popup {
     position: absolute;
     right: 50px;

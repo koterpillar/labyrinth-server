@@ -191,10 +191,15 @@ $(document).ready(function () {
         var form = $(this);
         form.attr('action', '/game/' + gameId + '/move');
         scrollDown();
-        return ajax_submit.call(form, function () {
-            $('#make_move_move').val('');
-            $('#make_move_move').focus();
-            obscureMove();
+        $('#move_error').text('');
+        return ajax_submit.call(form, function (result) {
+            if (result.error) {
+                $('#move_error').text(result.error);
+            } else {
+                $('#make_move_move').val('');
+                $('#make_move_move').focus();
+                obscureMove();
+            }
             scrollDown();
         });
     });
