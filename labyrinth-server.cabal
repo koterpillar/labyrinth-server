@@ -23,7 +23,7 @@ executable labyrinth-server
   main-is:             LabyrinthServer.hs
   other-modules:       LabyrinthServer.Data
   build-depends:       base >= 4.5 && < 4.7
-                     , labyrinth ==0.4.*
+                     , labyrinth >= 0.4.2.0 && < 0.5
                      , mtl ==2.1.*
                      , template-haskell >= 2.7 && < 2.9
                      , lens ==3.9.*
@@ -35,7 +35,7 @@ executable labyrinth-server
                      , text ==0.11.*
                      , transformers ==0.3.*
                      , vector ==0.10.*
-                     , acid-state ==0.8.*
+                     , acid-state ==0.12.*
                      , yesod ==1.2.*
                      , yesod-static ==1.2.*
                      , websockets ==0.7.*
