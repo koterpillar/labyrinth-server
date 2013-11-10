@@ -103,7 +103,7 @@ postForm form handler = do
     ((result, _), _) <- runFormPostNoToken form
     case result of
         FormSuccess value -> handler value
-        FormFailure errors -> returnJson errors
+        FormFailure errors -> returnCORSJson errors
 
 main :: IO ()
 main = do
@@ -133,6 +133,14 @@ wsHandler site rq = do
     WS.acceptRequest rq
     sink <- WS.getSink
     addWatcher site watch sink
+
+addCORSHeader :: MonadHandler m => m ()
+addCORSHeader = addHeader "Access-Control-Allow-Origin" "*"
+
+returnCORSJson :: (MonadHandler m, ToJSON a) => a -> m Value
+returnCORSJson v = do
+    addCORSHeader
+    returnJson v
 
 addWatcher :: (MonadIO m) => LabyrinthServer -> WatchTarget -> WSSink -> m ()
 addWatcher site watch sink =
@@ -179,7 +187,7 @@ immediateResponse :: WatchTarget -> Handler Value
 immediateResponse target = do
     site <- getYesod
     result <- watchTargetValue site target
-    returnJson result
+    returnCORSJson result
 
 mainLayout :: Widget -> Handler Html
 mainLayout widget = do
@@ -212,7 +220,7 @@ postNewGameR = postForm newGameForm $ \params -> do
     lab <- createLabyrinth params
     gameId <- newId
     res <- update GameList $ AddGame gameId lab
-    returnJson (if res then "ok" else "bad game" :: String)
+    returnCORSJson (if res then "ok" else "bad game" :: String)
 
 getGameR :: GameId -> Handler Value
 getGameR gameId = immediateResponse (GameLog gameId)
@@ -231,15 +239,16 @@ postMakeMoveR :: GameId -> Handler Value
 postMakeMoveR gameId = postForm makeMoveForm $ \playerMove -> do
     let PlayerMove playerId moveStr = playerMove
     case parseMove (T.unpack moveStr) of
-        Left err   -> returnJson $ object ["error" .= err]
+        Left err   -> returnCORSJson $ object ["error" .= err]
         Right move -> do
             res <- update (GameLog gameId) $ PerformMove gameId playerId move
-            returnJson $ show res
+            returnCORSJson $ show res
 
 deleteDeleteGameR :: GameId -> Handler Value
 deleteDeleteGameR gameId = do
     update GameList $ RemoveGame gameId
-    returnJson ("ok" :: String)
+    returnCORSJson ("ok" :: String)
 
 getExampleMovesR :: Handler Value
-getExampleMovesR = returnJson exampleMovesJSON
+getExampleMovesR = do
+    returnCORSJson exampleMovesJSON
