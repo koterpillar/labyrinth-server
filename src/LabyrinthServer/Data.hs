@@ -11,6 +11,7 @@ import Control.Monad.State
 import Control.Monad.Reader (ask)
 
 import Data.Acid (Query, Update, makeAcidic)
+import Data.Aeson.Types (Pair)
 import Data.DeriveTH
 import Data.Derive.Typeable
 import qualified Data.Map as M
@@ -160,15 +161,15 @@ makeAcidic ''Games [ 'getGames
 
 exampleMoves :: [Move]
 exampleMoves = [ ChoosePosition (Pos 2 4)
-                  , Move [goTowards L]
-                  , Move [Shoot U]
-                  , Move [Grenade D, goTowards D]
-                  , ReorderCell (Pos 3 3)
-                  , Query [BulletCount, GrenadeCount, PlayerHealth]
-                  , Say "hello"
-                  , Move [Conditional "hit a wall" [Grenade D] [Shoot L]]
-                  , Move [Surrender]
-                  ]
+               , Move [goTowards L]
+               , Move [Shoot U]
+               , Move [Grenade D, goTowards D]
+               , ReorderCell (Pos 3 3)
+               , Query [BulletCount, GrenadeCount, PlayerHealth]
+               , Say "hello"
+               , Move [Conditional "hit a wall" [Grenade D] [Shoot L]]
+               , Move [Surrender]
+               ]
 
 exampleMovesJSON :: Value
 exampleMovesJSON = array $ map show exampleMoves
@@ -237,10 +238,21 @@ instance ToSensitiveJSON Labyrinth where
                                      ]
                                | otherwise = []
 
+instance ToSensitiveJSON Move where
+    toSensitiveJSON s m = object $ [ "string" .= show m
+                                   ] ++ moveData s m
+
+moveData :: Bool -> Move -> [Pair]
+moveData s m = []
+
+instance ToSensitiveJSON MoveResult where
+    toSensitiveJSON _ m = object [ "string" .= show m
+                                 ]
+
 instance ToSensitiveJSON MoveRecord where
     toSensitiveJSON s r = object [ "player" .= (r ^. rplayer)
-                                 , "move"   .= show (r ^. rmove)
-                                 , "result" .= show (r ^. rresult)
+                                 , "move"   .= Sensitive s (r ^. rmove)
+                                 , "result" .= Sensitive s (r ^. rresult)
                                  , "state"  .= Sensitive s (r ^. rstate)
                                  ]
 

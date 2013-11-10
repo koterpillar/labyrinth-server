@@ -1,6 +1,6 @@
 {{#each log}}
-	{{player}}: {{move}}<br />
-	{{result}}<br />
+	{{player}}: {{move.string}}<br />
+	{{result.string}}<br />
 	{{#if state.map}}
 		<pre>{{state.map}}</pre>
 	{{/if}}
