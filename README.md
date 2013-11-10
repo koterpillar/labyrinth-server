@@ -15,6 +15,8 @@ Generally, the
 fresh enough. To get that:
 
     cabal install labyrinth-server
+    PATH=~/.cabal/bin:$PATH # This can go into ~/.profile
+    labyrinth-server
 
 To install directly from Git,
 [Cabal-dev](http://hackage.haskell.org/package/cabal-dev) is recommended.
@@ -23,3 +25,4 @@ To install directly from Git,
     cabal-dev install-deps
     cabal-dev configure
     cabal-dev build
+    ./dist/build/labyrinth-server/labyrinth-server
