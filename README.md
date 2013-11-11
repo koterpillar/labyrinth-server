@@ -14,6 +14,7 @@ Generally, the
 [version on Hackage](http://hackage.haskell.org/package/labyrinth-server) is
 fresh enough. To get that:
 
+    cabal update
     cabal install labyrinth-server
     PATH=~/.cabal/bin:$PATH # This can go into ~/.profile
     labyrinth-server
@@ -21,6 +22,7 @@ fresh enough. To get that:
 To install directly from Git,
 [Cabal-dev](http://hackage.haskell.org/package/cabal-dev) is recommended.
 
+    cabal update
     cabal install cabal-dev
     cabal-dev install-deps
     cabal-dev configure
