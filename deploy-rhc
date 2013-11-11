@@ -6,7 +6,13 @@ cabal-dev build
 
 mkdir -p rhc
 cd rhc
-[ -d .git ] || rhc git-clone labyrinth -r .
+if [ -d .git ]
+then
+	git fetch
+	git reset --hard origin/master
+else
+	rhc git-clone labyrinth -r .
+fi
 git rm -rf --ignore-unmatch * .??*
 
 cp ../dist/build/labyrinth-server/labyrinth-server .
