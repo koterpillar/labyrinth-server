@@ -14,6 +14,7 @@ import Data.Acid (Query, Update, makeAcidic)
 import Data.Aeson.Types (Pair)
 import Data.DeriveTH
 import Data.Derive.Typeable
+import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.SafeCopy (base, deriveSafeCopy)
 import qualified Data.Text as T
@@ -242,17 +243,135 @@ instance ToSensitiveJSON Move where
     toSensitiveJSON s m = object $ [ "string" .= show m
                                    ] ++ moveData s m
 
-moveData :: Bool -> Move -> [Pair]
-moveData s m = []
+withType :: String -> [Pair] -> [Pair]
+withType t = (("type" .= t):)
 
-instance ToSensitiveJSON MoveResult where
-    toSensitiveJSON _ m = object [ "string" .= show m
-                                 ]
+moveData :: Bool -> Move -> [Pair]
+moveData s (Move as) = withType "move" $
+    ["actions" .= as]
+moveData s (ChoosePosition p) = withType "choose_position" $
+    ["position" .= p | s]
+moveData s (ReorderCell p) = withType "reorder_cell" $
+    ["position" .= p | s]
+moveData s (Query qs) = withType "query" $
+    ["queries" .= qs]
+moveData s (Say text) = withType "say" $
+    ["text" .= text]
+
+instance ToJSON Action where
+    toJSON (Go Next) = object $ withType "go" $
+        ["direction" .= ("next" :: String)]
+    toJSON (Go (Towards dir)) = object $ withType "go" ["direction" .= dir]
+    toJSON (Shoot dir) = object $ withType "shoot" ["direction" .= dir]
+    toJSON (Grenade dir) = object $ withType "grenade" ["direction" .= dir]
+    toJSON Surrender = object $ withType "surrender" []
+    toJSON (Conditional cif cthen celse) = object $ withType "conditional" $
+        [ "if" .= cif
+        , "then" .= cthen
+        , "else" .= celse
+        ]
+
+instance ToJSON QueryType where
+    toJSON BulletCount = "bullets"
+    toJSON GrenadeCount = "grenades"
+    toJSON PlayerHealth = "health"
+    toJSON TreasureCarried = "treasure"
+
+instance ToJSON MoveResult where
+    toJSON m@(MoveRes as) = object [ "string" .= show m
+                                   , "results" .= as
+                                   ]
+
+objWithType :: ToJSON a => String -> a -> [Pair]
+objWithType s o = withType s $ HM.toList m
+    where Object m = toJSON o
+
+instance ToJSON ActionResult where
+    toJSON ar = object $ toPairs ar
+
+toPairs :: ActionResult -> [Pair]
+toPairs (GoR r) =             objWithType "go" r
+toPairs shot@(ShootR r) =     withType "shoot" [ "result" .= show shot]
+toPairs gr@(GrenadeR r) =     withType "grenade" [ "result" .= show gr]
+toPairs Surrendered  =        withType "surrendered" []
+toPairs (WoundedAlert pi h) = withType "wounded" [ "player" .= pi
+                                                 , "health" .= h
+                                                 ]
+toPairs (ChoosePositionR r) = withType "choose position" ["result" .= show r]
+toPairs (ReorderCellR r)    = objWithType "reorder cell" r
+toPairs (QueryR r)          = objWithType "query" r
+toPairs (GameStarted rs)    = withType "game started" ["results" .= rs]
+toPairs Draw                = withType "draw" []
+toPairs WrongTurn           = withType "wrong turn" []
+toPairs InvalidMove         = withType "invalid move" []
+
+instance ToJSON GoResult where
+    toJSON (Went ct cr) =     object [ "result" .= ("success" :: String)
+                                     , "cell"   .= ct
+                                     , "events" .= cr
+                                     ]
+    toJSON (WentOutside tr) = object [ "result"          .= ("outside" :: String)
+                                     , "treasure_result" .= tr
+                                     ]
+    toJSON (HitWall cr) =     object [ "result" .= ("wall" :: String)
+                                     , "events" .= cr
+                                     ]
+    toJSON LostOutside =      object [ "result" .= ("lost outside" :: String)
+                                     ]
+    toJSON InvalidMovement =  object [ "result" .= ("invalid movement" :: String)
+                                     ]
+
+instance ToJSON ReorderCellResult where
+    toJSON (ReorderOK ct cr) = object [ "result" .= ("success" :: String)
+                                      , "cell"   .= ct
+                                      , "events" .= cr
+                                      ]
+    toJSON ReorderForbidden  = object [ "result" .= ("forbidden" :: String)
+                                      ]
+
+instance ToJSON CellTypeResult where
+    toJSON = toJSON . show
+
+instance ToJSON CellEvents where
+    toJSON ev = object $ [ "found_bullets" .= (ev ^. foundBullets)
+                         , "found_grenades" .= (ev ^. foundGrenades)
+                         , "found_treasures" .= (ev ^. foundTreasures)
+                         ] ++ transported
+        where transported = case ev ^. transportedTo of
+                  Nothing -> []
+                  Just ct -> ["transported_to" .= ct]
+
+instance ToJSON TreasureResult where
+    toJSON TurnedToAshesR = "turned to ashes"
+    toJSON TrueTreasureR  = "victory"
+
+instance ToJSON QueryResult where
+    toJSON (BulletCountR b)     = object [ "query" .= ("bullets" :: String)
+                                         , "count" .= b
+                                         ]
+    toJSON (GrenadeCountR g)    = object [ "query" .= ("grenades" :: String)
+                                         , "value" .= g
+                                         ]
+    toJSON (HealthR h)          = object [ "query" .= ("health" :: String)
+                                         , "value" .= h
+                                         ]
+    toJSON (TreasureCarriedR t) = object [ "query" .= ("treasure" :: String)
+                                         , "value" .= t
+                                         ]
+
+instance ToJSON Health where
+    toJSON = toJSON . show
+
+instance ToJSON StartResult where
+    toJSON r = object [ "player" .= (r ^. splayer)
+                      , "cell"   .= (r ^. scell)
+                      , "events" .= (r ^. sevents)
+                      ]
 
 instance ToSensitiveJSON MoveRecord where
     toSensitiveJSON s r = object [ "player" .= (r ^. rplayer)
                                  , "move"   .= Sensitive s (r ^. rmove)
-                                 , "result" .= Sensitive s (r ^. rresult)
+                                 , "result" .= (r ^. rresult)
                                  , "state"  .= Sensitive s (r ^. rstate)
                                  ]
 
