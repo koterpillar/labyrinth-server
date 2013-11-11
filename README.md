@@ -4,6 +4,11 @@ Labyrinth - Server
 This is a server for Labyrinth. For the game rules, please see
 [the Labyrinth project](https://github.com/koterpillar/labyrinth).
 
+Live instance
+-------------
+
+[Labyrinth](http://labyrinth.koterpillar.com:8000/)
+
 Installation
 ------------
 
