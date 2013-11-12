@@ -250,5 +250,4 @@ deleteDeleteGameR gameId = do
     returnCORSJson ("ok" :: String)
 
 getExampleMovesR :: Handler Value
-getExampleMovesR = do
-    returnCORSJson exampleMovesJSON
+getExampleMovesR = returnCORSJson exampleMovesJSON

@@ -189,7 +189,7 @@ instance ToJSON Direction where
     toJSON d = toJSON $ show d
 
 instance ToJSON CellType where
-    toJSON ct = object $ [ "type" .= show ct ] ++ prop ct
+    toJSON ct = object $ withType (show ct) $ prop ct
                     where prop (Pit n)   = ["number" .= n]
                           prop (River d) = ["direction" .= d]
                           prop _         = []
@@ -240,32 +240,27 @@ instance ToSensitiveJSON Labyrinth where
                                | otherwise = []
 
 instance ToSensitiveJSON Move where
-    toSensitiveJSON s m = object $ [ "string" .= show m
-                                   ] ++ moveData s m
+    toSensitiveJSON s m = object $ ("string" .= show m) : moveData s m
 
 withType :: String -> [Pair] -> [Pair]
 withType t = (("type" .= t):)
 
 moveData :: Bool -> Move -> [Pair]
-moveData s (Move as) = withType "move" $
-    ["actions" .= as]
-moveData s (ChoosePosition p) = withType "choose_position" $
+moveData s (Move as) = withType "move" ["actions" .= as]
+moveData s (ChoosePosition p) = withType "choose_position"
     ["position" .= p | s]
-moveData s (ReorderCell p) = withType "reorder_cell" $
-    ["position" .= p | s]
-moveData s (Query qs) = withType "query" $
-    ["queries" .= qs]
-moveData s (Say text) = withType "say" $
-    ["text" .= text]
+moveData s (ReorderCell p) = withType "reorder_cell" ["position" .= p | s]
+moveData s (Query qs) = withType "query" ["queries" .= qs]
+moveData s (Say text) = withType "say" ["text" .= text]
 
 instance ToJSON Action where
-    toJSON (Go Next) = object $ withType "go" $
+    toJSON (Go Next) = object $ withType "go"
         ["direction" .= ("next" :: String)]
     toJSON (Go (Towards dir)) = object $ withType "go" ["direction" .= dir]
     toJSON (Shoot dir) = object $ withType "shoot" ["direction" .= dir]
     toJSON (Grenade dir) = object $ withType "grenade" ["direction" .= dir]
     toJSON Surrender = object $ withType "surrender" []
-    toJSON (Conditional cif cthen celse) = object $ withType "conditional" $
+    toJSON (Conditional cif cthen celse) = object $ withType "conditional"
         [ "if" .= cif
         , "then" .= cthen
         , "else" .= celse
