@@ -219,3 +219,6 @@ instance ToJSON Game where
 instance ToJSON Games where
     toJSON g = object [T.pack id .= game | (id, game) <- lst]
         where lst = M.toList $ g ^. games
+
+instance FromJSON Move where
+    parseJSON = undefined

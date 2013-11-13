@@ -7,6 +7,7 @@ import Control.Applicative
 import Control.Monad
 
 import Data.Aeson
+import qualified Data.Aeson as AE
 import qualified Data.ByteString.Lazy as BS
 import Data.DeriveTH
 
@@ -66,5 +67,5 @@ isSecret _                  = False
 prop_move_to_json :: Move -> Bool
 prop_move_to_json = (0 <) . BS.length . encode . toSensitiveJSON True
 
--- prop_show_parse_move :: Move -> Bool
--- prop_show_parse_move
+prop_show_parse_move :: Move -> Bool
+prop_show_parse_move m = (AE.Success m) == fromJSON (toSensitiveJSON True m)
