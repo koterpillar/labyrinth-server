@@ -12,7 +12,7 @@ import Data.DeriveTH
 
 import Labyrinth
 
-import LabyrinthServer.Data
+import LabyrinthServer.JSON
 
 import Test.Framework
 

@@ -47,6 +47,7 @@ import Yesod.Static
 import Labyrinth hiding (performMove)
 
 import LabyrinthServer.Data
+import LabyrinthServer.JSON
 
 newId :: (MonadIO m) => m String
 newId = replicateM 32 $ liftIO $ randomRIO ('a', 'z')
@@ -250,4 +251,4 @@ deleteDeleteGameR gameId = do
     returnCORSJson ("ok" :: String)
 
 getExampleMovesR :: Handler Value
-getExampleMovesR = returnCORSJson exampleMovesJSON
+getExampleMovesR = returnCORSJson $ Sensitive True exampleMoves
