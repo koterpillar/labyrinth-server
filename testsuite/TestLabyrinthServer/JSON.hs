@@ -68,4 +68,4 @@ prop_move_to_json :: Move -> Bool
 prop_move_to_json = (0 <) . BS.length . encode . toSensitiveJSON True
 
 prop_show_parse_move :: Move -> Bool
-prop_show_parse_move m = (AE.Success m) == fromJSON (toSensitiveJSON True m)
+prop_show_parse_move m = AE.Success m == fromJSON (toSensitiveJSON True m)

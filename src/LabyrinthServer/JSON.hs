@@ -1,17 +1,22 @@
 {-# LANGUAGE OverloadedStrings     #-}
 module LabyrinthServer.JSON where
 
+import Control.Applicative
 import Control.Lens hiding (Action, (.=))
+import Control.Monad
 
 import Data.Aeson
-import Data.Aeson.Types (Pair)
+import Data.Aeson.Types (Pair, Parser)
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
+import qualified Text.Parsec as P
+
 import Labyrinth hiding (performMove)
 import qualified Labyrinth as L
+import qualified Labyrinth.Read as LR
 
 import LabyrinthServer.Data
 
@@ -220,5 +225,46 @@ instance ToJSON Games where
     toJSON g = object [T.pack id .= game | (id, game) <- lst]
         where lst = M.toList $ g ^. games
 
+withObject' = withObject "object expected"
+
+withObjectType :: (String -> Object -> Parser a) -> Value -> Parser a
+withObjectType f = withObject' $ \o -> do
+    t <- o .: "type"
+    f t o
+
+stringParser :: P.Parsec String () a -> Value -> Parser a
+stringParser parser (String str) = case P.parse parser "" (T.unpack str) of
+        Left err -> error $ show err
+        Right res -> return res
+stringParser _ _ = error "string expected"
+
 instance FromJSON Move where
-    parseJSON = undefined
+    parseJSON = withObjectType $ \t o -> case t of
+        "move" -> Move <$> o .: "actions"
+        "choose_position" -> ChoosePosition <$> o .: "position"
+        "reorder_cell" -> ReorderCell <$> o .: "position"
+        "query" -> Query <$> o .: "queries"
+        "say" -> Say <$> o .: "text"
+
+instance FromJSON Action where
+    parseJSON = withObjectType $ \t o -> case t of
+        "go" -> Go <$> o .: "direction"
+        "shoot" -> Shoot <$> o .: "direction"
+        "grenade" -> Grenade <$> o .: "direction"
+        "surrender" -> pure Surrender
+        "conditional" -> Conditional <$> o .: "if"
+                                     <*> o .: "then"
+                                     <*> o .: "else"
+
+instance FromJSON Direction where
+    parseJSON = stringParser LR.direction
+
+instance FromJSON MoveDirection where
+    parseJSON (String "next") = return Next
+    parseJSON x = liftM Towards $ parseJSON x
+
+instance FromJSON Position where
+    parseJSON = withObject' $ \o -> Pos <$> o .: "x" <*> o .: "y"
+
+instance FromJSON QueryType where
+    parseJSON = stringParser LR.queryParser
