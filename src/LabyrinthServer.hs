@@ -22,11 +22,13 @@ import Data.Acid ( AcidState
 import Data.Acid.Advanced (query', update')
 import Data.Acid.Local (createCheckpointAndClose)
 import Data.Aeson
-import qualified Data.ByteString.UTF8 as BSU
+import Data.Aeson.Types (parseEither)
+import qualified Data.ByteString.Lazy as BS
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.Encoding as E
 import qualified Data.String as S
 
 import Network.Wai.Handler.Warp
@@ -128,7 +130,7 @@ main = do
 
 wsHandler :: LabyrinthServer -> WS.Request -> WS.WebSockets WSType ()
 wsHandler site rq = do
-    let path = BSU.toString $ WS.requestPath rq
+    let path = T.unpack $ E.decodeUtf8 $ WS.requestPath rq
     -- TODO: parse path better
     let watch = if path == "/games" then GameList else GameLog $ drop 6 path
     WS.acceptRequest rq
@@ -235,6 +237,11 @@ makeMoveForm :: Html
 makeMoveForm = renderDivs $ PlayerMove
     <$> areq intField (named "player") Nothing
     <*> areq textField (named "move") Nothing
+
+parseMove' :: T.Text -> Either String Move
+parseMove' str = case eitherDecode (BS.fromStrict $ E.encodeUtf8 str) of
+    Left err -> parseMove (T.unpack str)
+    Right m -> Right m
 
 postMakeMoveR :: GameId -> Handler Value
 postMakeMoveR gameId = postForm makeMoveForm $ \playerMove -> do
