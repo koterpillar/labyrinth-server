@@ -254,7 +254,7 @@ postMakeMoveR gameId = postForm makeMoveForm $ \playerMove -> do
         Left err   -> returnCORSJson $ object ["error" .= err]
         Right move -> do
             res <- update (GameLog gameId) $ PerformMove gameId playerId move
-            returnCORSJson $ show res
+            returnCORSJson res
 
 deleteDeleteGameR :: GameId -> Handler Value
 deleteDeleteGameR gameId = do
