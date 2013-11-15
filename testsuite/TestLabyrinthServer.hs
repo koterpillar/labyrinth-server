@@ -1,9 +1,11 @@
 {-# OPTIONS_GHC -F -pgmF htfpp #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module TestLabyrinthServer where
 
 import Control.Monad
+
+import Data.Aeson
+import Data.String (fromString)
 
 import System.Directory
 
@@ -31,6 +33,9 @@ runLabyrinthSession s = makeTestServer $ \server -> do
     app <- toWaiApp server
     runSession s app
 
+requestGet :: String -> Session SResponse
+requestGet = request . setPath defaultRequest . fromString
+
 test_game_list = runLabyrinthSession $ do
-    gameList <- request $ setPath defaultRequest "/games"
-    assertBody "{}" gameList
+    gameList <- requestGet "games"
+    assertBody (encode $ object []) gameList
