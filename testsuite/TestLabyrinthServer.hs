@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -F -pgmF htfpp #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module TestLabyrinthServer where
 
@@ -16,14 +16,15 @@ import Network.Wai.Test
 
 import LabyrinthServer
 
+{-# ANN module "HLint: ignore Use camelCase" #-}
+
 testDataPath = "test_state"
 
 makeTestServer :: (LabyrinthServer -> IO a) -> IO a
 makeTestServer cont = do
     testDataExists <- doesDirectoryExist testDataPath
     when testDataExists $ removeDirectoryRecursive testDataPath
-    res <- makeServer testDataPath cont
-    return res
+    makeServer testDataPath cont
 
 runLabyrinthSession :: Session a -> IO a
 runLabyrinthSession s = makeTestServer $ \server -> do

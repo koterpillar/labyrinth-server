@@ -9,6 +9,7 @@ install:
   - cabal build
 
 script:
+  - hlint -x src testsuite
   - $script
 
 env:
