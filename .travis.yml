@@ -1,7 +1,8 @@
 language: haskell
 
 before_install:
-  - sudo apt-get -q -y install cpphs hlint
+  - sudo apt-get -q -y install cpphs
+  - cabal install hlint
   - travis/cabal-apt-install $mode
 
 install:
