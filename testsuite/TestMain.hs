@@ -2,6 +2,7 @@
 
 import Test.Framework
 
+import {-@ HTF_TESTS @-} TestLabyrinthServer
 import {-@ HTF_TESTS @-} TestLabyrinthServer.JSON
 
 main = htfMain htf_importedTests

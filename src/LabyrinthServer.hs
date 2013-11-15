@@ -3,7 +3,7 @@
 {-# LANGUAGE QuasiQuotes           #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
-module Main where
+module LabyrinthServer where
 
 import Control.Applicative
 import Control.Concurrent
@@ -96,6 +96,30 @@ mkYesod "LabyrinthServer" [parseRoutes|
 instance Yesod LabyrinthServer where
     defaultLayout = mainLayout
 
+makeServer :: FilePath -> (LabyrinthServer -> IO a) -> IO a
+makeServer dataPath cont = do
+    static <- static "static"
+    bracket
+        (openLocalStateFrom dataPath noGames)
+        createCheckpointAndClose $
+        \acid -> do
+            watchers <- newMVar M.empty
+            cont $ LabyrinthServer acid static watchers
+
+labyrinthMain :: IO ()
+labyrinthMain = do
+    dataPath <- getDataPath
+    makeServer dataPath $ \server -> do
+        port <- liftM read $ envVarWithDefault "8080" "PORT"
+        ip <- envVarWithDefault "127.0.0.1" "OPENSHIFT_INTERNAL_IP"
+        app <- toWaiApp server
+        let intercept = WaiWS.intercept $ wsHandler server
+        let settings = defaultSettings { settingsPort      = port
+                                       , settingsHost      = Host ip
+                                       , settingsIntercept = intercept
+                                       }
+        runSettings settings app
+
 instance RenderMessage LabyrinthServer FormMessage where
     renderMessage _ _ = defaultFormMessage
 
@@ -107,26 +131,6 @@ postForm form handler = do
     case result of
         FormSuccess value -> handler value
         FormFailure errors -> returnCORSJson errors
-
-main :: IO ()
-main = do
-    dataPath <- getDataPath
-    port <- liftM read $ envVarWithDefault "8080" "PORT"
-    ip <- envVarWithDefault "127.0.0.1" "OPENSHIFT_INTERNAL_IP"
-    static <- static "static"
-    bracket
-        (openLocalStateFrom dataPath noGames)
-        createCheckpointAndClose $
-        \acid -> do
-            watchers <- newMVar M.empty
-            let server = LabyrinthServer acid static watchers
-            app <- toWaiApp server
-            let intercept = WaiWS.intercept $ wsHandler server
-            let settings = defaultSettings { settingsPort      = port
-                                           , settingsHost      = Host ip
-                                           , settingsIntercept = intercept
-                                           }
-            runSettings settings app
 
 wsHandler :: LabyrinthServer -> WS.Request -> WS.WebSockets WSType ()
 wsHandler site rq = do
