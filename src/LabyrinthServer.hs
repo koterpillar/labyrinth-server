@@ -250,7 +250,7 @@ parseMove' str = case eitherDecode (BS.fromStrict $ E.encodeUtf8 str) of
 postMakeMoveR :: GameId -> Handler Value
 postMakeMoveR gameId = postForm makeMoveForm $ \playerMove -> do
     let PlayerMove playerId moveStr = playerMove
-    case parseMove (T.unpack moveStr) of
+    case parseMove' moveStr of
         Left err   -> returnCORSJson $ object ["error" .= err]
         Right move -> do
             res <- update (GameLog gameId) $ PerformMove gameId playerId move

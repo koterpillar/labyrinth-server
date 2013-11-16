@@ -7,9 +7,12 @@ import Control.Monad
 import Data.Aeson hiding ((.=))
 import qualified Data.Aeson as AE
 import Data.Aeson.Types (Pair)
+import qualified Data.ByteString.Lazy as BS
 import Data.List
 import qualified Data.Map as M
-import Data.String (fromString)
+import Data.String (IsString, fromString)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as E
 
 import System.Directory
 
@@ -22,7 +25,9 @@ import Network.HTTP.Types.Header
 import Network.Wai
 import Network.Wai.Test
 
+import Labyrinth
 import LabyrinthServer
+import LabyrinthServer.JSON
 
 {-# ANN module "HLint: ignore Use camelCase" #-}
 
@@ -62,6 +67,9 @@ k .= v = (AE..=) (fromString k) v
 assertJsonBody :: SResponse -> Value -> Session ()
 assertJsonBody resp val = assertBody (encode val) resp
 
+encodeString :: ToJSON a => a -> String
+encodeString = T.unpack . E.decodeUtf8 . BS.toStrict . encode
+
 test_interaction = runLabyrinthSession $ do
     gameList <- requestGet "games"
     assertBody (encode $ object []) gameList
@@ -100,6 +108,20 @@ test_interaction = runLabyrinthSession $ do
                                   , "results" .= [
                                         object [ "type" .= "choose position"
                                                , "result" .= "position chosen"
+                                               ]
+                                    ]
+                                  ]
+    -- This will start the game with unpredictable exact result, not checking
+    requestPost gameMoveUrl [ ("player", "1")
+                            , ("move", "choose 1 1")
+                            ]
+    move3 <- requestPost gameMoveUrl [ ("player", fromString "0")
+                                     , ("move", encodeString $ Sensitive True $ Move [Grenade R])
+                                     ]
+    assertJsonBody move3 $ object [ "string" .= "grenade thrown"
+                                  , "results" .= [
+                                        object [ "type" .= "grenade"
+                                               , "result" .= "grenade thrown"
                                                ]
                                     ]
                                   ]
