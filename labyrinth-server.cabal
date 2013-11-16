@@ -1,5 +1,5 @@
 name:                labyrinth-server
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis:            A complicated turn-based game - Web server
 description:         Players take turns in a labyrinth, competing with each
                      other to pick a treasure and carry it out. They only know
