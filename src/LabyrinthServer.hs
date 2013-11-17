@@ -217,7 +217,7 @@ named name = FieldSettings "" Nothing Nothing (Just name) []
 
 newGameForm :: Html
             -> MForm Handler (FormResult LabyrinthParams, Widget)
-newGameForm = renderDivs $ LabyrinthParams
+newGameForm = renderDivs $ LabyrinthParams defaultFeatures
     <$> areq intField (named "width") Nothing
     <*> areq intField (named "height") Nothing
     <*> areq intField (named "players") Nothing

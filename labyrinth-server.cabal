@@ -25,7 +25,7 @@ executable labyrinth-server
                      , LabyrinthServer.Data
   build-depends:       base >= 4.5 && < 4.7
 
-                     , labyrinth >= 0.4.2.0 && < 0.5
+                     , labyrinth >= 0.5.0.0 && < 0.6
 
                      , mtl ==2.1.*
                      , template-haskell >= 2.7 && < 2.9
@@ -59,7 +59,7 @@ test-Suite tests
   main-is:             TestMain.hs
   build-depends:       base >= 4.5 && < 4.7
 
-                     , labyrinth >= 0.4.2.0 && < 0.5
+                     , labyrinth >= 0.5.0.0 && < 0.6
 
                      , mtl ==2.1.*
                      , template-haskell >= 2.7 && < 2.9

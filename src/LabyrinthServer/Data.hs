@@ -107,16 +107,10 @@ stateUpdate f = do
     put st'
     return r
 
-data LabyrinthParams = LabyrinthParams { lpwidth   :: Int
-                                       , lpheight  :: Int
-                                       , lpplayers :: Int
-                                       }
-
 createLabyrinth :: (MonadIO m) => LabyrinthParams -> m Labyrinth
 createLabyrinth p = do
     gen <- liftIO getStdGen
-    let (l, gen') = generateLabyrinth
-                        (lpwidth p) (lpheight p) (lpplayers p) gen
+    let (l, gen') = generateLabyrinth p gen
     liftIO $ setStdGen gen'
     return l
 
