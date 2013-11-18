@@ -8,6 +8,10 @@
         <input #add_game_width type=number min=4 max=10 name=width>
         <label for=add_game_height>Height:</label>
         <input #add_game_height type=number min=4 max=10 name=height>
+        <label for=add_game_pits>Pits:</label>
+        <input #add_game_pits type=checkbox checked name=pits>
+        <label for=add_game_rivers>Rivers:</label>
+        <input #add_game_rivers type=checkbox checked name=rivers>
         <input type=submit value="Create game">
   <div #games .body>
 <div #game_log>
