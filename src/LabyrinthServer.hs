@@ -71,13 +71,9 @@ getDataPath = do
 data WatchTarget = GameList | GameLog GameId
                    deriving (Eq, Ord)
 
-type WSType = WS.Hybi00
-
-type WSSink = WS.Sink WSType
-
 data LabyrinthServer = LabyrinthServer { lsGames    :: AcidState Games
                                        , lsStatic   :: Static
-                                       , lsWatchers :: MVar (M.Map WatchTarget [WSSink])
+                                       , lsWatchers :: MVar (M.Map WatchTarget [WS.Connection])
                                        }
 
 staticFiles "static"
@@ -132,14 +128,15 @@ postForm form handler = do
         FormSuccess value -> handler value
         FormFailure errors -> returnCORSJson errors
 
-wsHandler :: LabyrinthServer -> WS.Request -> WS.WebSockets WSType ()
+wsHandler :: LabyrinthServer -> WS.PendingConnection -> IO ()
 wsHandler site rq = do
-    let path = T.unpack $ E.decodeUtf8 $ WS.requestPath rq
+    let path = T.unpack $ E.decodeUtf8 $ WS.requestPath $ WS.pendingRequest rq
     -- TODO: parse path better
     let watch = if path == "/games" then GameList else GameLog $ drop 6 path
-    WS.acceptRequest rq
-    sink <- WS.getSink
-    addWatcher site watch sink
+    conn <- WS.acceptRequest rq
+    addWatcher site watch conn
+    -- Ignore all received messages
+    forever $ WS.receive conn
 
 addCORSHeader :: MonadHandler m => m ()
 addCORSHeader = addHeader "Access-Control-Allow-Origin" "*"
@@ -149,10 +146,10 @@ returnCORSJson v = do
     addCORSHeader
     returnJson v
 
-addWatcher :: (MonadIO m) => LabyrinthServer -> WatchTarget -> WSSink -> m ()
-addWatcher site watch sink =
-    liftIO $ modifyMVar_ (lsWatchers site) $ \watchers ->
-        return $ M.insertWith (++) watch [sink] watchers
+addWatcher :: LabyrinthServer -> WatchTarget -> WS.Connection -> IO ()
+addWatcher site watch conn =
+    modifyMVar_ (lsWatchers site) $ \watchers ->
+        return $ M.insertWith (++) watch [conn] watchers
 
 query :: (QueryEvent event, EventState event ~ Games)
       => event
@@ -177,8 +174,7 @@ notifyWatchers :: (MonadIO m) => LabyrinthServer -> WatchTarget -> m ()
 notifyWatchers site watch = liftIO $ withMVar (lsWatchers site) $ \watchersMap -> do
     let watchers = fromMaybe [] $ M.lookup watch watchersMap
     value <- watchTargetValue site watch
-    forM_ watchers $ \sink ->
-        WS.sendSink sink $ WS.textData $ encode value
+    forM_ watchers $ flip WS.sendTextData $ encode value
 
 watchTargetValue :: (MonadIO m) => LabyrinthServer -> WatchTarget -> m Value
 watchTargetValue site GameList = do
