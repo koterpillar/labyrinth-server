@@ -7,7 +7,7 @@ module LabyrinthServer where
 
 import Control.Applicative
 import Control.Concurrent
-import Control.Exception (bracket)
+import Control.Exception (bracket, fromException, handleJust)
 import Control.Lens hiding ((.=))
 import Control.Monad
 import Control.Monad.IO.Class
@@ -24,6 +24,7 @@ import Data.Acid.Local (createCheckpointAndClose)
 import Data.Aeson
 import Data.Aeson.Types (parseEither)
 import qualified Data.ByteString.Lazy as BS
+import Data.Function
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -43,7 +44,7 @@ import Text.Hamlet (hamletFile)
 import Text.Julius (juliusFile)
 import Text.Lucius (luciusFile)
 
-import Yesod hiding (update)
+import Yesod hiding (delete, update)
 import Yesod.Static
 
 import Labyrinth hiding (performMove)
@@ -71,9 +72,22 @@ getDataPath = do
 data WatchTarget = GameList | GameLog GameId
                    deriving (Eq, Ord)
 
+data ConnectionInfo = ConnectionInfo { ciId   :: String
+                                     , ciConn :: WS.Connection
+                                     }
+instance Eq ConnectionInfo where
+    (==) = (==) `on` ciId
+
+mkConnInfo :: WS.Connection -> IO ConnectionInfo
+mkConnInfo conn = do
+    id <- newId
+    return $ ConnectionInfo id conn
+
+type Watchers = M.Map WatchTarget [ConnectionInfo]
+
 data LabyrinthServer = LabyrinthServer { lsGames    :: AcidState Games
                                        , lsStatic   :: Static
-                                       , lsWatchers :: MVar (M.Map WatchTarget [WS.Connection])
+                                       , lsWatchers :: MVar Watchers
                                        }
 
 staticFiles "static"
@@ -119,37 +133,40 @@ labyrinthMain = do
 instance RenderMessage LabyrinthServer FormMessage where
     renderMessage _ _ = defaultFormMessage
 
-postForm :: (Html -> MForm Handler (FormResult a, Widget))
-         -> (a -> Handler Value)
-         -> Handler Value
-postForm form handler = do
-    ((result, _), _) <- runFormPostNoToken form
-    case result of
-        FormSuccess value -> handler value
-        FormFailure errors -> returnCORSJson errors
-
 wsHandler :: LabyrinthServer -> WS.PendingConnection -> IO ()
 wsHandler site rq = do
     let path = T.unpack $ E.decodeUtf8 $ WS.requestPath $ WS.pendingRequest rq
     -- TODO: parse path better
     let watch = if path == "/games" then GameList else GameLog $ drop 6 path
     conn <- WS.acceptRequest rq
-    addWatcher site watch conn
-    -- Ignore all received messages
-    forever $ WS.receive conn
+    ci <- mkConnInfo conn
+    addWatcher site watch ci
+    forever $ handleConnClosed (removeWatcher site watch ci) $ do
+        -- Ignore all received messages
+        WS.receive conn
+        return ()
 
-addCORSHeader :: MonadHandler m => m ()
-addCORSHeader = addHeader "Access-Control-Allow-Origin" "*"
+handleConnClosed :: IO a -> IO a -> IO a
+handleConnClosed handler = handleJust whenClosed (const handler)
+    where whenClosed e = case fromException e :: Maybe WS.ConnectionException of
+                             Just ce -> Just ce
+                             _ -> Nothing
 
-returnCORSJson :: (MonadHandler m, ToJSON a) => a -> m Value
-returnCORSJson v = do
-    addCORSHeader
-    returnJson v
+withWatchers :: LabyrinthServer -> (Watchers -> IO Watchers) -> IO ()
+withWatchers site = modifyMVar_ $ lsWatchers site
 
-addWatcher :: LabyrinthServer -> WatchTarget -> WS.Connection -> IO ()
-addWatcher site watch conn =
-    modifyMVar_ (lsWatchers site) $ \watchers ->
-        return $ M.insertWith (++) watch [conn] watchers
+addWatcher :: LabyrinthServer -> WatchTarget -> ConnectionInfo -> IO ()
+addWatcher site watch ci = withWatchers site $ \watchers ->
+        return $ M.insertWith (++) watch [ci] watchers
+
+removeWatcher :: LabyrinthServer -> WatchTarget -> ConnectionInfo -> IO ()
+removeWatcher site watch ci = withWatchers site $ \watchers ->
+        return $ removeWatcher' watch ci watchers
+
+removeWatcher' :: WatchTarget -> ConnectionInfo -> Watchers -> Watchers
+removeWatcher' watch ci = M.update (nullMaybe . delete ci) watch
+    where nullMaybe [] = Nothing
+          nullMaybe x  = Just x
 
 query :: (QueryEvent event, EventState event ~ Games)
       => event
@@ -171,10 +188,15 @@ update watch ev = do
     return res
 
 notifyWatchers :: (MonadIO m) => LabyrinthServer -> WatchTarget -> m ()
-notifyWatchers site watch = liftIO $ withMVar (lsWatchers site) $ \watchersMap -> do
+notifyWatchers site watch = liftIO $ withWatchers site $ \watchersMap -> do
     let watchers = fromMaybe [] $ M.lookup watch watchersMap
     value <- watchTargetValue site watch
-    forM_ watchers $ flip WS.sendTextData $ encode value
+    let notifyOne watchersMap ci = handleConnClosed
+            (return $ removeWatcher' watch ci watchersMap)
+            $ do
+                WS.sendTextData (ciConn ci) (encode value)
+                return watchersMap
+    foldM notifyOne watchersMap watchers
 
 watchTargetValue :: (MonadIO m) => LabyrinthServer -> WatchTarget -> m Value
 watchTargetValue site GameList = do
@@ -191,6 +213,23 @@ immediateResponse target = do
     site <- getYesod
     result <- watchTargetValue site target
     returnCORSJson result
+
+postForm :: (Html -> MForm Handler (FormResult a, Widget))
+         -> (a -> Handler Value)
+         -> Handler Value
+postForm form handler = do
+    ((result, _), _) <- runFormPostNoToken form
+    case result of
+        FormSuccess value -> handler value
+        FormFailure errors -> returnCORSJson errors
+
+addCORSHeader :: MonadHandler m => m ()
+addCORSHeader = addHeader "Access-Control-Allow-Origin" "*"
+
+returnCORSJson :: (MonadHandler m, ToJSON a) => a -> m Value
+returnCORSJson v = do
+    addCORSHeader
+    returnJson v
 
 mainLayout :: Widget -> Handler Html
 mainLayout widget = do
