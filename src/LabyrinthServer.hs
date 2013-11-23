@@ -141,16 +141,16 @@ wsHandler site rq = do
     conn <- WS.acceptRequest rq
     ci <- mkConnInfo conn
     addWatcher site watch ci
-    forever $ handleConnClosed (removeWatcher site watch ci) $ do
+    forever $ handleConnError (removeWatcher site watch ci) $ do
         -- Ignore all received messages
         WS.receive conn
         return ()
 
-handleConnClosed :: IO a -> IO a -> IO a
-handleConnClosed handler = handleJust whenClosed (const handler)
-    where whenClosed e = case fromException e :: Maybe WS.ConnectionException of
-                             Just ce -> Just ce
-                             _ -> Nothing
+handleConnError :: IO a -> IO a -> IO a
+handleConnError handler = handleJust whenWSError (const handler)
+                         . handleJust whenIOError (const handler)
+    where whenWSError e = fromException e :: Maybe WS.ConnectionException
+          whenIOError e = fromException e :: Maybe IOError
 
 withWatchers :: LabyrinthServer -> (Watchers -> IO Watchers) -> IO ()
 withWatchers site = modifyMVar_ $ lsWatchers site
@@ -191,7 +191,7 @@ notifyWatchers :: (MonadIO m) => LabyrinthServer -> WatchTarget -> m ()
 notifyWatchers site watch = liftIO $ withWatchers site $ \watchersMap -> do
     let watchers = fromMaybe [] $ M.lookup watch watchersMap
     value <- watchTargetValue site watch
-    let notifyOne watchersMap ci = handleConnClosed
+    let notifyOne watchersMap ci = handleConnError
             (return $ removeWatcher' watch ci watchersMap)
             $ do
                 WS.sendTextData (ciConn ci) (encode value)
